@@ -15,7 +15,7 @@ app.use(express.json());
 
 /* ---------- FILE UPLOAD CONFIG ---------- */
 const upload = multer({
-  dest: "uploads/",
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (file.mimetype === "application/pdf") {
       cb(null, true);
@@ -29,7 +29,7 @@ const upload = multer({
 
 app.post("/upload", upload.single("file"), async (req, res) => {
     try {
-      const buffer = fs.readFileSync(req.file.path);
+      const buffer = req.file.buffer;
       const pdfData = await pdfParse(buffer);
       console.log(pdfData)
       const lines = pdfData.text.split("\n");
@@ -137,7 +137,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       XLSX.writeFile(workbook, fileName);
       res.download(fileName);
 
-      fs.unlinkSync(req.file.path);
     //   res.json({ message: "PDF uploaded & processed" });
   
     } catch (err) {
