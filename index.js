@@ -134,8 +134,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
       const fileName = `expenses${allTrnasactions[allTrnasactions.length-1].date}-${allTrnasactions[0].date}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
-      res.download(fileName);
+      const filePath = path.join("/tmp", fileName);
+      XLSX.writeFile(workbook, filePath);
+      res.download(filePath);
 
     //   res.json({ message: "PDF uploaded & processed" });
   
