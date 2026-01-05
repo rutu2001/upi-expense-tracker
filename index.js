@@ -128,9 +128,32 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           allTrnasactions.push({date, type, amount, details, category, transactionID, utrNo, paidBy});
 
       });
-
+const headers = [
+  "DATE",
+  "TYPE",
+  "AMOUNT",
+  "DETAILS",
+  "CATEGORY",
+  "TRANSACTION ID",
+  "UTR NO",
+  "PAID BY",
+];
 const workbook = XLSX.utils.book_new();
-const worksheet = XLSX.utils.json_to_sheet(allTrnasactions);
+const worksheet = XLSX.utils.json_to_sheet(allTrnasactions,{
+  skipHeader: true,
+});
+
+XLSX.utils.sheet_add_aoa(worksheet, [headers], { origin: "A1" });
+
+headers.forEach((_, index) => {
+  const cellAddress = XLSX.utils.encode_cell({ r: 0, c: index });
+  worksheet[cellAddress].s = {
+    font: { bold: true },
+  };
+});
+
+worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+      
 XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
 const fileName = `expenses-${allTrnasactions[allTrnasactions.length - 1].date}-${allTrnasactions[0].date}.xlsx`;
