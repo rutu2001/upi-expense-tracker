@@ -136,7 +136,7 @@ XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 const fileName = `expenses-${allTrnasactions[allTrnasactions.length - 1].date}-${allTrnasactions[0].date}.xlsx`;
 
 // ⬇️ generate Excel in memory
-const buffer = XLSX.write(workbook, {
+const excelBuffer = XLSX.write(workbook, {
   type: "buffer",
   bookType: "xlsx",
 });
@@ -151,7 +151,7 @@ res.setHeader(
   `attachment; filename="${fileName}"`
 );
 
-res.send(buffer);
+res.send(excelBuffer);
 
     //   res.json({ message: "PDF uploaded & processed" });
   
