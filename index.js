@@ -129,14 +129,29 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
       });
 
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(allTrnasactions);
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+const workbook = XLSX.utils.book_new();
+const worksheet = XLSX.utils.json_to_sheet(allTrnasactions);
+XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
-      const fileName = `expenses${allTrnasactions[allTrnasactions.length-1].date}-${allTrnasactions[0].date}.xlsx`;
-      const filePath = path.join("/tmp", fileName);
-      XLSX.writeFile(workbook, filePath);
-      res.download(filePath);
+const fileName = `expenses-${allTrnasactions[allTrnasactions.length - 1].date}-${allTrnasactions[0].date}.xlsx`;
+
+// ⬇️ generate Excel in memory
+const buffer = XLSX.write(workbook, {
+  type: "buffer",
+  bookType: "xlsx",
+});
+
+// ⬇️ send file as download
+res.setHeader(
+  "Content-Type",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+);
+res.setHeader(
+  "Content-Disposition",
+  `attachment; filename="${fileName}"`
+);
+
+res.send(buffer);
 
     //   res.json({ message: "PDF uploaded & processed" });
   
