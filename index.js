@@ -29,7 +29,13 @@ const upload = multer({
 
 app.post("/upload", upload.single("file"), async (req, res) => {
     try {
-      const buffer = req.file.buffer;
+      if (!req.file) {
+  return res.status(400).json({
+    error: "No PDF file uploaded"
+  });
+}
+
+const buffer = req.file.buffer;
       const pdfData = await pdfParse(buffer);
       console.log(pdfData)
 const lines = pdfData.text.split("\n");
@@ -42,103 +48,129 @@ console.log("============================");
       console.log("Total lines:", lines.length);
 console.log("First 50 lines:");
 console.log(lines.slice(0, 50));
-      let prevLines = [];
-      let allTrnasactions=[];
-      lines.forEach((line,i) => {
-        line = line.trim();
-      
-        // Only lines starting with DEBIT or CREDIT
-const typeMatch = line.match(/\b(DEBIT|CREDIT)\b/i);
-        if (!typeMatch) {
-            // Keep last 2 lines in memory
-            prevLines.push(line);
-            if (prevLines.length > 2) prevLines.shift(); // only keep 2 previous lines
-            return; // skip this line
-          }
-      
-        const type = typeMatch[1].toUpperCase(); // DEBIT or CREDIT
-      
-        // Amount comes after ₹ symbol
-        const amountMatch = line.match(/₹([\d,]+(?:\.\d{1,2})?)/);
-        if (!amountMatch) return; // skip if no amount found
-      
-        let amount = parseFloat(amountMatch[1].replace(/,/g, ""));
-        if (type === "DEBIT") amount = Math.abs(amount); // always positive
-        else if (type === "CREDIT") amount = Math.abs(amount);
-      
-        // Transaction details = everything after the amount
-        let details = line.slice(line.indexOf(amountMatch[0]) + amountMatch[0].length).trim();
+  const cleanedLines = lines
+  .map(line => line.trim())
+  .filter(line => line.length > 0);
 
-        if (details == 'Paid to\n' || details == 'Paid to'){
-            if (i + 1 <= lines.length) 
-            details = 'Paid to ' + lines[i+1].trim();
-        }
+let allTrnasactions = [];
 
-        let date = "";
-        function normalizeDate(dateStr) {
-            // Expected format: "Jan 04, 2026"
-            const months = {
-              Jan: "01", Feb: "02", Mar: "03", Apr: "04",
-              May: "05", Jun: "06", Jul: "07", Aug: "08",
-              Sep: "09", Oct: "10", Nov: "11", Dec: "12"
-            };
-          
-            const parts = dateStr.replace(",", "").split(" ");
-            if (parts.length !== 3) return null;
-          
-            const [mon, day, year] = parts;
-          
-            if (!months[mon]) return null;
-          
-            return `${year}-${months[mon]}-${day.padStart(2, "0")}`;
-          }
-          
-  if (prevLines.length >= 2) {
-    date =  normalizeDate(prevLines[0]) // 2 lines back
-  }
+      function normalizeDate(dateStr) {
+  const months = {
+    Jan: "01",
+    Feb: "02",
+    Mar: "03",
+    Apr: "04",
+    May: "05",
+    Jun: "06",
+    Jul: "07",
+    Aug: "08",
+    Sep: "09",
+    Oct: "10",
+    Nov: "11",
+    Dec: "12",
+  };
 
-      // --- Next 4 lines
-  let transactionID = "";
-  let utrNo = "";
-  let paidBy = "";
+  const parts = dateStr.replace(",", "").split(" ");
 
-  for (let j = 1; j <= 5; j++) {
-    if (i + j >= lines.length) break;
-    const nextLine = lines[i + j].trim();
+  if (parts.length !== 3) return null;
 
-    if (/Transaction ID/i.test(nextLine)) {
-      transactionID = nextLine.split("Transaction ID")[1].trim();
-    } else if (/UTR No/i.test(nextLine)) {
-      utrNo = nextLine.split("UTR No.")[1].trim();
-    } else if (/XXXX/i.test(nextLine)) {
-      paidBy = nextLine.split("\n")[0].trim();
+  const [mon, day, year] = parts;
+
+  return `${year}-${months[mon]}-${day.padStart(2, "0")}`;
+}
+
+for (let i = 0; i < cleanedLines.length; i++) {
+
+  const line = cleanedLines[i];
+
+  if (/^[A-Z][a-z]{2}\s\d{2},\s\d{4}$/.test(line)) {
+
+    const date = normalizeDate(line);
+
+    const time = cleanedLines[i + 1] || "";
+
+    const details = cleanedLines[i + 2] || "";
+
+    const transactionID =
+      (cleanedLines[i + 3] || "")
+        .replace("Transaction ID :", "")
+        .trim();
+
+    const utrNo =
+      (cleanedLines[i + 4] || "")
+        .replace("UTR No :", "")
+        .trim();
+
+    const paidBy =
+      (cleanedLines[i + 5] || "")
+        .replace("Debited from", "")
+        .trim();
+
+    const amountLine = cleanedLines[i + 6] || "";
+
+    const amountMatch =
+      amountLine.match(/(Debit|Credit)INR\s*([\d,.]+)/i);
+
+    if (!amountMatch) continue;
+
+    const type = amountMatch[1].toUpperCase();
+
+    const amount = parseFloat(
+      amountMatch[2].replace(/,/g, "")
+    );
+
+    let category = "Other";
+
+    const d = details.toLowerCase();
+
+    if (
+      d.includes("swiggy") ||
+      d.includes("zomato") ||
+      d.includes("blinkit") ||
+      d.includes("dominos") ||
+      d.includes("kfc")
+    ) {
+      category = "Food";
     }
+    else if (
+      d.includes("uber") ||
+      d.includes("ola") ||
+      d.includes("rapido")
+    ) {
+      category = "Travel";
+    }
+    else if (
+      d.includes("amazon") ||
+      d.includes("flipkart") ||
+      d.includes("meesho") ||
+      d.includes("myntra") ||
+      d.includes("nykaa") ||
+      d.includes("reliance")
+    ) {
+      category = "Shopping";
+    }
+    else if (
+      d.includes("salary")
+    ) {
+      category = "Income";
+    }
+
+    allTrnasactions.push({
+      date,
+      time,
+      type,
+      amount,
+      details,
+      category,
+      transactionID,
+      utrNo,
+      paidBy
+    });
   }
-
-        // Category logic
-        let category = "Other";
-        const d = details.toLowerCase();
-        if (d.includes("swiggy") || d.includes("zomato") || d.includes("dominos") || d.includes("kfc") || d.includes("mc donalds") || d.includes("burger king") || d.includes("pizza hut") || d.includes("subway")  || d.includes("burger king") || d.includes("pizza hut") || d.includes("subway")|| d.includes("blinkit")) category = "Food";
-        else if (d.includes("uber") || d.includes("ola") || d.includes("rapido")) category = "Travel";
-        else if (d.includes("amazon") || d.includes("flipkart") || d.includes("MEESHO") || d.includes("Myntra") || d.includes("Nykaa") || d.includes("RELIANCE")) category = "Shopping";
-        else if (d.includes("salary")) category = "Income";
-      
-        // Insert into DB
-        // db.run(
-        //     `INSERT INTO transactions (date, description, amount, type, category, transaction_id, utr_no, paid_by)
-        //      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        //     [date, details, amount, type, category, transactionID, utrNo, paidBy]
-        //   );
-        
-        //   // Optional: log for testing
-        //   console.log(date, type, amount, details, category, transactionID, utrNo, paidBy);
-
-
-          allTrnasactions.push({date, type, amount, details, category, transactionID, utrNo, paidBy});
-
-      });
+}
 const headers = [
   "DATE",
+  "TIME",
   "TYPE",
   "AMOUNT",
   "DETAILS",
@@ -152,6 +184,8 @@ const headers = [
 if (allTrnasactions.length > 0) {
   console.log("First transaction:", allTrnasactions[0]);
 }
+      console.log("Transactions extracted:", allTrnasactions.length);
+console.log(allTrnasactions.slice(0, 5));
 const workbook = XLSX.utils.book_new();
 const worksheet = XLSX.utils.json_to_sheet(allTrnasactions,{
   skipHeader: true,
