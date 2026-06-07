@@ -32,7 +32,13 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       const buffer = req.file.buffer;
       const pdfData = await pdfParse(buffer);
       console.log(pdfData)
-      const lines = pdfData.text.split("\n");
+const lines = pdfData.text.split("\n");
+
+console.log("========= PDF TEXT =========");
+lines.slice(0, 100).forEach((line, index) => {
+  console.log(index, JSON.stringify(line));
+});
+console.log("============================");
       console.log("Total lines:", lines.length);
 console.log("First 50 lines:");
 console.log(lines.slice(0, 50));
@@ -42,7 +48,7 @@ console.log(lines.slice(0, 50));
         line = line.trim();
       
         // Only lines starting with DEBIT or CREDIT
-        const typeMatch = line.match(/^(DEBIT|CREDIT)/i);
+const typeMatch = line.match(/\b(DEBIT|CREDIT)\b/i);
         if (!typeMatch) {
             // Keep last 2 lines in memory
             prevLines.push(line);
