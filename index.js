@@ -33,6 +33,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       const pdfData = await pdfParse(buffer);
       console.log(pdfData)
       const lines = pdfData.text.split("\n");
+      console.log("Total lines:", lines.length);
+console.log("First 50 lines:");
+console.log(lines.slice(0, 50));
       let prevLines = [];
       let allTrnasactions=[];
       lines.forEach((line,i) => {
@@ -138,6 +141,11 @@ const headers = [
   "UTR NO",
   "PAID BY",
 ];
+      console.log("Transactions extracted:", allTrnasactions.length);
+
+if (allTrnasactions.length > 0) {
+  console.log("First transaction:", allTrnasactions[0]);
+}
 const workbook = XLSX.utils.book_new();
 const worksheet = XLSX.utils.json_to_sheet(allTrnasactions,{
   skipHeader: true,
@@ -156,7 +164,16 @@ worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
       
 XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
-const fileName = `expenses-${allTrnasactions[allTrnasactions.length - 1].date}-${allTrnasactions[0].date}.xlsx`;
+if (allTrnasactions.length === 0) {
+  return res.status(400).json({
+    error: "No transactions found in PDF"
+  });
+}
+
+const firstDate = allTrnasactions[0]?.date || "unknown";
+const lastDate = allTrnasactions[allTrnasactions.length - 1]?.date || "unknown";
+
+const fileName = `expenses-${lastDate}-${firstDate}.xlsx`;
 
 // ⬇️ generate Excel in memory
 const excelBuffer = XLSX.write(workbook, {
